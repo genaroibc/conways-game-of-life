@@ -218,7 +218,7 @@
 
         const startX = offsetX % gridSize
         const startY = offsetY % gridSize
-        console.log({ offsetX, offsetY })
+
         ctx.beginPath()
         for (let x = startX; x < canvasWidth; x += gridSize) {
           ctx.moveTo(x, 0)
@@ -303,10 +303,6 @@
       let scrollStartY = 0
 
       function onCanvasWheel(e) {
-        console.log(e, {
-          scrollStartX,
-          scrollStartY
-        })
         scrollStartX = offsetX
         scrollStartY = offsetY
         offsetX = -e.deltaX + scrollStartX
@@ -327,9 +323,7 @@
 
       function onSelectPlay() {
         isGameRunning = !isGameRunning
-        console.log({
-          isGameRunning
-        })
+
         if (isGameRunning) {
           animationFrameRequestId = requestAnimationFrame(frameRequestCallback)
         } else {
@@ -464,7 +458,6 @@
         isGameRunning = false
         if (speedSlider instanceof HTMLInputElement) {
           speedSlider.value = INITIAL_UPDATE_INTERVAL / 1000
-          console.log({ A: INITIAL_UPDATE_INTERVAL / 1000 })
         }
       }
 
@@ -472,8 +465,6 @@
         const newSpeed = e.target.value
 
         updateInterval = 1000 / newSpeed
-
-        console.log({ newSpeed })
       }
 
       let lastTime = 0
