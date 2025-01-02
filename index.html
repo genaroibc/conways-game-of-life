@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Conway's Game of Life</title>
+  </head>
+  <style>
+    *,
+    *::after,
+    *::before {
+      box-sizing: border-box;
+    }
+
+    html {
+      overflow: hidden;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+
+      width: 100vw;
+      height: 100vh;
+
+      cursor: grab;
+    }
+
+    #board {
+      width: 100%;
+      background-color: black;
+      height: 100%;
+    }
+
+    #toolbar {
+      position: fixed;
+      border-radius: 0.5rem;
+      background-color: #232323;
+      transform: translateX(-50%);
+      left: 50%;
+      display: flex;
+      flex-direction: column;
+      color: #666;
+      padding: 0.5rem;
+      gap: 0.5rem;
+    }
+
+    .toolbar_button {
+      color: #666;
+    }
+
+    button {
+      cursor: pointer;
+      background: transparent;
+    }
+
+    .toolbar-buttons-wrapper {
+      display: flex;
+      gap: 1rem;
+    }
+
+    .toolbar-slider-container {
+      display: flex;
+      gap: 0.3rem;
+    }
+
+    .toolbar_speed-slider {
+      width: 100%;
+    }
+  </style>
+  <body>
+    <menu id="toolbar">
+      <div class="toolbar-buttons-wrapper">
+        <button id="toolbar_button--paintbrush" class="toolbar_button">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            width="24"
+            height="24"
+            stroke-width="2"
+          >
+            <path d="M3 21v-4a4 4 0 1 1 4 4h-4"></path>
+            <path d="M21 3a16 16 0 0 0 -12.8 10.2"></path>
+            <path d="M21 3a16 16 0 0 1 -10.2 12.8"></path>
+            <path d="M10.6 9a9 9 0 0 1 4.4 4.4"></path>
+          </svg>
+        </button>
+
+        <button id="toolbar_button--drag" class="toolbar_button">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            width="24"
+            height="24"
+            stroke-width="2"
+          >
+            <path d="M8 13v-7.5a1.5 1.5 0 0 1 3 0v6.5"></path>
+            <path d="M11 5.5v-2a1.5 1.5 0 1 1 3 0v8.5"></path>
+            <path d="M14 5.5a1.5 1.5 0 0 1 3 0v6.5"></path>
+            <path
+              d="M17 7.5a1.5 1.5 0 0 1 3 0v8.5a6 6 0 0 1 -6 6h-2h.208a6 6 0 0 1 -5.012 -2.7a69.74 69.74 0 0 1 -.196 -.3c-.312 -.479 -1.407 -2.388 -3.286 -5.728a1.5 1.5 0 0 1 .536 -2.022a1.867 1.867 0 0 1 2.28 .28l1.47 1.47"
+            ></path>
+          </svg>
+        </button>
+
+        <button id="toolbar_button--play" class="toolbar_button">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            width="24"
+            height="24"
+            stroke-width="2"
+          >
+            <path d="M7 4v16l13 -8z"></path>
+          </svg>
+        </button>
+
+        <button id="toolbar_button--reset" class="toolbar_button">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            width="24"
+            height="24"
+            stroke-width="2"
+          >
+            <path d="M4.05 11a8 8 0 1 1 .5 4m-.5 5v-5h5"></path>
+          </svg>
+        </button>
+      </div>
+
+      <div class="toolbar-slider-container">
+        <span class="toolbar_slider_speed-limit">0.5x</span>
+        <input
+          class="toolbar_speed-slider"
+          id="toolbar_button--speed-slider"
+          type="range"
+          min="0.5"
+          max="20"
+          step="0.1"
+          value="5"
+        />
+        <span class="toolbar_slider_speed-limit">20x</span>
+      </div>
+    </menu>
+
+    <canvas width="1000" height="1000" id="board"></canvas>
+
+    <script>
+      const canvas = document.getElementById("board")
+      const paintbrushButton = document.getElementById(
+        "toolbar_button--paintbrush"
+      )
+      const dragButton = document.getElementById("toolbar_button--drag")
+      const playButton = document.getElementById("toolbar_button--play")
+      const resetButton = document.getElementById("toolbar_button--reset")
+      const speedSlider = document.getElementById(
+        "toolbar_button--speed-slider"
+      )
+
+      const isValidCanvasElement = canvas instanceof HTMLCanvasElement
+      if (!isValidCanvasElement) {
+        throw new Error("Canvas element not found")
+      }
+
+      const ctx = canvas.getContext("2d")
+
+      let canvasWidth = window.innerWidth
+      let canvasHeight = window.innerHeight
+
+      canvas.width = canvasWidth
+      canvas.height = canvasHeight
+
+      const CURSOR_ACTION = {
+        DRAG: 0,
+        DRAW: 1
+      }
+
+      let offsetX = 0
+      let offsetY = 0
+      let isDragging = false
+      let isDrawing = false
+      let cursorAction = CURSOR_ACTION.DRAG
+
+      const gridSize = 30
+      const gridCells = new Map()
+
+      function toggleDragOff() {
+        isDragging = false
+        canvas.style.cursor = "grab"
+      }
+
+      function toggleDrawingOn() {
+        isDrawing = true
+      }
+
+      function toggleDrawingOff() {
+        isDrawing = false
+      }
+
+      function drawGrid() {
+        ctx.clearRect(0, 0, canvasWidth, canvasHeight)
+
+        const startX = offsetX % gridSize
+        const startY = offsetY % gridSize
+        console.log({ offsetX, offsetY })
+        ctx.beginPath()
+        for (let x = startX; x < canvasWidth; x += gridSize) {
+          ctx.moveTo(x, 0)
+          ctx.lineTo(x, canvasHeight)
+        }
+
+        for (let y = startY; y < canvasHeight; y += gridSize) {
+          ctx.moveTo(0, y)
+          ctx.lineTo(canvasWidth, y)
+        }
+        ctx.strokeStyle = "#555"
+        ctx.lineWidth = 1
+        ctx.stroke()
+
+        for (const [key, color] of gridCells) {
+          const [x, y] = key.split(",").map(Number)
+          ctx.fillStyle = color
+          ctx.fillRect(
+            x * gridSize + offsetX,
+            y * gridSize + offsetY,
+            gridSize,
+            gridSize
+          )
+        }
+      }
+
+      function getGridCell(x, y) {
+        const cellX = Math.floor((x - offsetX) / gridSize)
+        const cellY = Math.floor((y - offsetY) / gridSize)
+        return `${cellX},${cellY}`
+      }
+
+      function paintCell(x, y, color = "white") {
+        const cellKey = getGridCell(x, y)
+        gridCells.set(cellKey, color)
+      }
+
+      function onResize() {
+        canvasWidth = window.innerWidth
+        canvasHeight = window.innerHeight
+        canvas.width = canvasWidth
+        canvas.height = canvasHeight
+        drawGrid()
+      }
+
+      let dragStartX = 0
+      let dragStartY = 0
+
+      function onMouseDown(e) {
+        if (cursorAction === CURSOR_ACTION.DRAG) {
+          isDragging = true
+          canvas.style.cursor = "grabbing"
+          scrollStartX = 0
+          scrollStartY = 0
+
+          dragStartX = e.clientX - offsetX
+          dragStartY = e.clientY - offsetY
+        } else if (cursorAction === CURSOR_ACTION.DRAW) {
+          toggleDrawingOn()
+          paintCell(e.clientX, e.clientY)
+          drawGrid()
+        }
+      }
+
+      function onMouseMove(e) {
+        if (isDragging && cursorAction === CURSOR_ACTION.DRAG) {
+          offsetX = e.clientX - dragStartX
+          offsetY = e.clientY - dragStartY
+          drawGrid()
+        } else if (isDrawing && cursorAction === CURSOR_ACTION.DRAW) {
+          paintCell(e.clientX, e.clientY)
+          drawGrid()
+        }
+      }
+
+      function onMouseUp() {
+        toggleDragOff()
+        toggleDrawingOff()
+      }
+
+      let scrollStartX = 0
+      let scrollStartY = 0
+
+      function onCanvasWheel(e) {
+        console.log(e, {
+          scrollStartX,
+          scrollStartY
+        })
+        scrollStartX = offsetX
+        scrollStartY = offsetY
+        offsetX = -e.deltaX + scrollStartX
+        offsetY = -e.deltaY + scrollStartY
+        drawGrid()
+      }
+
+      function onSelectPaintbrush(e) {
+        canvas.style.cursor = "crosshair"
+        cursorAction = CURSOR_ACTION.DRAW
+      }
+      function onSelectDrag(e) {
+        canvas.style.cursor = "grab"
+        cursorAction = CURSOR_ACTION.DRAG
+      }
+      let isGameRunning = false
+      let animationFrameRequestId = null
+
+      function onSelectPlay() {
+        isGameRunning = !isGameRunning
+        console.log({
+          isGameRunning
+        })
+        if (isGameRunning) {
+          animationFrameRequestId = requestAnimationFrame(frameRequestCallback)
+        } else {
+          cancelAnimationFrame(animationFrameRequestId)
+        }
+      }
+
+      function runBoardUpdate() {
+        const gridCellsToDelete = []
+        const gridCellsToAdd = []
+
+        // Process current alive cells
+        for (const [key, color] of gridCells) {
+          const [x, y] = key.split(",").map(Number)
+          const { totalAliveCount, deadCells } = getNeighborCells(x, y)
+
+          if (totalAliveCount < 2 || totalAliveCount > 3) {
+            gridCellsToDelete.push(key) // Dies due to under-population or overcrowding
+          }
+
+          // Check dead neighbors for potential revival
+          for (const deadCell of deadCells) {
+            const [dx, dy] = deadCell.split(",").map(Number)
+            const { totalAliveCount } = getNeighborCells(dx, dy)
+
+            if (totalAliveCount === 3) {
+              gridCellsToAdd.push(deadCell)
+            }
+          }
+        }
+
+        for (const cell of gridCellsToDelete) {
+          gridCells.delete(cell)
+        }
+        for (const cell of gridCellsToAdd) {
+          gridCells.set(cell, "white")
+        }
+
+        drawGrid()
+      }
+
+      function getNeighborCells(x, y) {
+        const coordinates = {
+          left: `${x - 1},${y}`,
+          right: `${x + 1},${y}`,
+          top: `${x},${y - 1}`,
+          bottom: `${x},${y + 1}`,
+          topLeft: `${x - 1},${y - 1}`,
+          topRight: `${x + 1},${y - 1}`,
+          bottomLeft: `${x - 1},${y + 1}`,
+          bottomRight: `${x + 1},${y + 1}`
+        }
+        const left = gridCells.get(coordinates.left)
+        const right = gridCells.get(coordinates.right)
+        const top = gridCells.get(coordinates.top)
+        const bottom = gridCells.get(coordinates.bottom)
+        const topLeft = gridCells.get(coordinates.topLeft)
+        const topRight = gridCells.get(coordinates.topRight)
+        const bottomLeft = gridCells.get(coordinates.bottomLeft)
+        const bottomRight = gridCells.get(coordinates.bottomRight)
+
+        let totalAliveCount = 0
+        const deadCells = []
+        if (left) {
+          totalAliveCount += 1
+        } else {
+          deadCells.push(coordinates.left)
+        }
+        if (right) {
+          totalAliveCount += 1
+        } else {
+          deadCells.push(coordinates.right)
+        }
+        if (top) {
+          totalAliveCount += 1
+        } else {
+          deadCells.push(coordinates.top)
+        }
+        if (bottom) {
+          totalAliveCount += 1
+        } else {
+          deadCells.push(coordinates.bottom)
+        }
+        if (topLeft) {
+          totalAliveCount += 1
+        } else {
+          deadCells.push(coordinates.topLeft)
+        }
+        if (topRight) {
+          totalAliveCount += 1
+        } else {
+          deadCells.push(coordinates.topRight)
+        }
+        if (bottomLeft) {
+          totalAliveCount += 1
+        } else {
+          deadCells.push(coordinates.bottomLeft)
+        }
+        if (bottomRight) {
+          totalAliveCount += 1
+        } else {
+          deadCells.push(coordinates.bottomRight)
+        }
+
+        return {
+          totalAliveCount,
+          deadCells
+        }
+      }
+
+      function countAliveNeighbors(cells = []) {
+        return cells.reduce(
+          (acc, cell) => {
+            if (cell) {
+              acc.aliveCount += 1
+            } else {
+              acc.dead.push(cell)
+            }
+            return acc
+          },
+          {
+            aliveCount: 0,
+            dead: []
+          }
+        )
+      }
+
+      function onSelectReset(e) {
+        gridCells.clear()
+        drawGrid()
+        onSelectPaintbrush()
+        isGameRunning = false
+        if (speedSlider instanceof HTMLInputElement) {
+          speedSlider.value = INITIAL_UPDATE_INTERVAL / 1000
+          console.log({ A: INITIAL_UPDATE_INTERVAL / 1000 })
+        }
+      }
+
+      function onSpeedSliderChange(e) {
+        const newSpeed = e.target.value
+
+        updateInterval = 1000 / newSpeed
+
+        console.log({ newSpeed })
+      }
+
+      let lastTime = 0
+      let elapsedTime = 0
+      const INITIAL_UPDATE_INTERVAL = 200
+      let updateInterval = INITIAL_UPDATE_INTERVAL
+
+      function frameRequestCallback(currentTime) {
+        const deltaTime = currentTime - lastTime
+        lastTime = currentTime
+        elapsedTime += deltaTime
+
+        if (elapsedTime > updateInterval) {
+          runBoardUpdate()
+          elapsedTime = 0
+        }
+
+        if (isGameRunning) {
+          animationFrameRequestId = requestAnimationFrame(frameRequestCallback)
+        }
+      }
+
+      window.addEventListener("resize", onResize)
+      canvas.addEventListener("mousedown", onMouseDown)
+      canvas.addEventListener("mousemove", onMouseMove)
+      canvas.addEventListener("mouseup", onMouseUp)
+      canvas.addEventListener("mouseleave", onMouseUp)
+      canvas.addEventListener("wheel", onCanvasWheel, {
+        passive: true
+      })
+
+      paintbrushButton.addEventListener("click", onSelectPaintbrush)
+      dragButton.addEventListener("click", onSelectDrag)
+      playButton.addEventListener("click", onSelectPlay)
+      resetButton.addEventListener("click", onSelectReset)
+      speedSlider.addEventListener("change", onSpeedSliderChange)
+
+      runBoardUpdate()
+    </script>
+  </body>
+</html>
